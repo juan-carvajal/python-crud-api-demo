@@ -1,13 +1,21 @@
 # Python
+import io
+import tempfile
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel, HttpUrl
+)
 from datetime import datetime
 # Fastapi
 from fastapi import (
-    FastAPI, UploadFile, status,
-    Query, Path
+    FastAPI, status,
+    Query, Path, Body
 )
-
+from fastapi.responses import FileResponse
+# third party
+import requests
+import qrcode
+from PIL import Image
 
 # Models
 class Item(BaseModel):
@@ -69,7 +77,7 @@ async def get_a_list_of_items(
     }
 
 
-## get a single post
+## get a single item
 @app.get(
     path="/items/{item_id}",
     tags=['items',],
@@ -98,6 +106,7 @@ def get_an_item(
         "complete": complete_data
     }
 
+## Create a new item
 @app.post(
     path='/items',
     status_code=status.HTTP_201_CREATED,
@@ -121,6 +130,7 @@ async def create_an_item(item: Item):
     """
     return item
 
+## update information
 @app.put(
     path='/item/{item_id}',
     status_code=status.HTTP_204_NO_CONTENT,
@@ -147,6 +157,8 @@ async def update_an_item(
     """
     pass
 
+
+## Delete an item
 @app.delete(
     path='/item/{item_id}',
     status_code=status.HTTP_204_NO_CONTENT,
@@ -168,10 +180,51 @@ async def delete_an_item(
     pass
 
 
+
 # External API
-@app.get(
-    path='/get-qr-code',
+
+def get_cat_img():
+    # request to Cat API
+    req = requests.get('https://thatcopy.pw/catapi/rest')
+    # get the URl from img
+    cat_url = req.json()['url']
+    img_req = requests.get(cat_url)
+    # create a temparary imga file
+    cat_img = tempfile.TemporaryFile()
+    cat_img.write(img_req.content)
+    return cat_img
+
+def create_qr_img( content: str, qr_size: int = 2):
+    img = Image.open(get_cat_img())
+    img = img.resize((round(img.size[0]*0.1), round(img.size[1]*0.1)))
+
+    qr = qrcode.QRCode(box_size=qr_size)
+    qr.add_data(content)
+    qr.make()
+    
+    img_qr = qr.make_image()
+    
+    pos = (img.size[0] - img_qr.size[0], img.size[1] - img_qr.size[1])
+    img.paste(img_qr, pos)
+
+    return img
+
+@app.post(
+    path='/qr-cat',
     tags=['third API',]
 )
-async def create_a_qr_code():
-    pass
+async def create_a_qr_code(
+    url: HttpUrl = Body(..., example="https://www.dacacode.com"),
+    qr_size: Optional[int] = Query(2, ge=1, le=5)
+):
+    qr_code = create_qr_img(url, qr_size)
+    qr_code.save('img.png')
+    
+    # temp = tempfile.TemporaryFile()
+    # temp.write(qr_code.tobytes())
+    
+    return FileResponse(
+        'img.png',
+        media_type='image/png',
+        filename='qr-code.png'
+    )

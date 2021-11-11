@@ -1,11 +1,13 @@
 # Python
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel, HttpUrl
+)
 from datetime import datetime
 # Fastapi
 from fastapi import (
-    FastAPI, UploadFile, status,
-    Query, Path
+    FastAPI, status,
+    Query, Path, Body
 )
 
 
@@ -69,7 +71,7 @@ async def get_a_list_of_items(
     }
 
 
-## get a single post
+## get a single item
 @app.get(
     path="/items/{item_id}",
     tags=['items',],
@@ -98,6 +100,7 @@ def get_an_item(
         "complete": complete_data
     }
 
+## Create a new item
 @app.post(
     path='/items',
     status_code=status.HTTP_201_CREATED,
@@ -121,6 +124,7 @@ async def create_an_item(item: Item):
     """
     return item
 
+## update information
 @app.put(
     path='/item/{item_id}',
     status_code=status.HTTP_204_NO_CONTENT,
@@ -147,6 +151,8 @@ async def update_an_item(
     """
     pass
 
+
+## Delete an item
 @app.delete(
     path='/item/{item_id}',
     status_code=status.HTTP_204_NO_CONTENT,
@@ -173,5 +179,9 @@ async def delete_an_item(
     path='/get-qr-code',
     tags=['third API',]
 )
-async def create_a_qr_code():
-    pass
+async def create_a_qr_code(
+    url: HttpUrl = Body(...)
+):
+    return {
+        "url": url
+    }

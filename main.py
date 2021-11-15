@@ -6,6 +6,14 @@ from pydantic import (
     BaseModel, HttpUrl
 )
 from datetime import datetime
+
+# Graphql
+import graphene
+from starlette.graphql import GraphQLApp
+from graphql.execution.executors.asyncio import AsyncioExecutor
+from schemaql import CourseType
+import json
+
 # Fastapi
 from fastapi import (
     FastAPI, status,
@@ -30,8 +38,61 @@ class DBItem(Item):
 class OutItem(Item):
     data: datetime
 
+# Model grahql
+class Queryqlsaludo(graphene.ObjectType):
+    saludo = graphene.String(name=graphene.String(default_value=", Unknown!"))
+    def resolve_saludo(self, info, name):
+        return "Hello " + name
+class Queryql(graphene.ObjectType):
+  course_list = None
+  get_course = graphene.Field(graphene.List(CourseType), id=graphene.String())
+  async def resolve_get_course(self, info, id=None):
+    with open("./courses.json") as courses:
+      course_list = json.load(courses)
+    if (id):
+      for course in course_list:
+        if course['id'] == id: return [course]
+    return course_list
+
+class CreateCourse(graphene.Mutation):
+  course = graphene.Field(CourseType)
+
+  class Arguments:
+    id = graphene.String(required=True)
+    title = graphene.String(required=True)
+    instructor = graphene.String(required=True)
+    publish_date = graphene.String()
+
+  async def mutate(self, info, id, title, instructor):
+    with open("./courses.json", "r+") as courses:
+      course_list = json.load(courses)
+
+      for course in course_list:
+        if course['id'] == id:
+          raise Exception('Course with provided id already exists!')
+
+      course_list.append({"id": id, "title": title, "instructor": instructor})
+      courses.seek(0)
+      json.dump(course_list, courses, indent=2)
+    return CreateCourse(course=course_list[-1])
+class Mutation(graphene.ObjectType):
+  create_course = CreateCourse.Field()
+#
 
 app = FastAPI()
+
+# Graphql Path
+app.add_route(
+    "/graphql/saludo", 
+    GraphQLApp(schema=graphene.Schema(query=Queryqlsaludo))
+)
+app.add_route(
+    "/graphql/", 
+    GraphQLApp(schema=graphene.Schema(query=Queryql, mutation=Mutation),
+    executor_class=AsyncioExecutor)
+)
+
+
 
 
 # Root Paht
@@ -57,7 +118,7 @@ def api_description():
     tags=['items',]
 )
 async def get_a_list_of_items(
-    limit: Optional[int] = Query(10, le=100, ge=1),
+    limit: Optional[int] = Query(10, len=100, ge=1),
     offset: Optional[int] = Query(0, ge=1)
 ):
     """
@@ -178,8 +239,6 @@ async def delete_an_item(
         - *item_id* (int) = the id from the item that you want to delete, is a positive integer value
     """
     pass
-
-
 
 # External API
 
